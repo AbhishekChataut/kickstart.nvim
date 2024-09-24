@@ -93,16 +93,111 @@ vim.g.maplocalleader = ' '
 -- Set to true if you have a Nerd Font installed and selected in the terminal
 vim.g.have_nerd_font = false
 
+-- Exit terminal mode shortcut
+vim.api.nvim_set_keymap('t', '<C-q>', '<C-\\><C-n>', { noremap = true, silent = true })
+
 -- [[ Setting options ]]
 -- See `:help vim.opt`
 -- NOTE: You can change these options as you wish!
 --  For more options, you can see `:help option-list`
-
+-- Open init.lua file
+vim.api.nvim_create_user_command('EditInit', 'edit $MYVIMRC', {})
+-- Map <leader>q to :qa!
+vim.api.nvim_set_keymap('n', '<leader>q', ':qa!<CR>', { desc = '[Q]uit all without saving' })
+vim.api.nvim_set_keymap('n', '<leader>w', ':w<CR>', { desc = '[W]rite and save current file' })
+vim.api.nvim_set_keymap('n', '<leader>o', ':Oil<CR>', { desc = 'Open [O]il.nvim' })
 -- Make line numbers default
-vim.opt.number = true
+-- vim.opt.number = true
+vim.wo.number = false
+vim.wo.relativenumber = false
+
+local function on_term_open()
+  vim.wo.number = false
+  vim.wo.relativenumber = false
+  vim.cmd 'startinsert'
+end
+
+vim.api.nvim_create_autocmd('TermOpen', {
+  pattern = '*',
+  callback = on_term_open,
+})
+
+vim.api.nvim_create_autocmd('TabEnter', {
+  pattern = '*',
+  callback = function()
+    if vim.bo.buftype == 'terminal' then
+      vim.cmd 'startinsert'
+    end
+  end,
+})
+
+vim.o.autochdir = true
+
+-- Function to open a new tab with a terminal in the parent directory
+function OpenTerminalInNewTab()
+  local current_dir = vim.fn.getcwd() -- Get the current working directory
+  local parent_dir = vim.fn.fnamemodify(current_dir, ':h') -- Get the parent directory
+  vim.cmd 'tabnew' -- Create a new tab
+  -- vim.cmd('lcd ' .. parent_dir) -- Change to the parent directory
+  vim.cmd 'term' -- Open a terminal in the new tab
+  vim.cmd 'startinsert' -- Switch to insert mode
+end
+
+-- Map the function to a keybinding for easy access
+vim.api.nvim_set_keymap('n', '<leader>tt', ':lua OpenTerminalInNewTab()<CR>', { noremap = true, silent = true, desc = 'Open a [T]erminal [T]ab' })
+vim.api.nvim_set_keymap('n', '<leader>td', ':bd!<CR>', { noremap = true, silent = true, desc = '[T]ab [D]elete' })
+vim.api.nvim_set_keymap('n', '<leader>tb', ':tabn<CR>', { noremap = true, silent = true, desc = '[T]ab [B]ack' })
+
+local function setup_windows()
+  local reveal_file = vim.fn.expand '%:p'
+  if reveal_file == '' then
+    reveal_file = vim.fn.getcwd()
+  else
+    local f = io.open(reveal_file, 'r')
+    if f then
+      f.close(f)
+    else
+      reveal_file = vim.fn.getcwd()
+    end
+  end
+
+  -- require('neo-tree.command').execute {
+  --   action = 'show', -- OPTIONAL, this is the default value
+  --   source = 'filesystem', -- OPTIONAL, this is the default value
+  --   position = 'left', -- OPTIONAL, this is the default value
+  --   reveal_file = reveal_file, -- path to file or folder to reveal
+  --   reveal_force_cwd = true, -- change cwd without asking if needed
+  --   toggle = true,
+  -- }
+end
+
+local function setup_lsp()
+  -- Check if LSP is available
+  if vim.lsp then
+    -- Iterate over active clients
+    for _, client in pairs(vim.lsp.get_clients()) do
+      -- Check if inlay hint provider is supported
+      if client.server_capabilities and client.server_capabilities.inlayHintProvider then
+        -- Enable inlay hints
+        vim.lsp.inlay_hint.enable(true)
+        return
+      end
+    end
+  end
+end
+
+-- Call setup_lsp() when NeoVim is ready
+vim.defer_fn(function()
+  setup_lsp()
+end, 300)
+
+vim.api.nvim_create_autocmd('VimEnter', {
+  pattern = '*',
+  callback = setup_windows,
+})
 -- You can also add relative line numbers, to help with jumping.
 --  Experiment for yourself to see if you like it!
--- vim.opt.relativenumber = true
+vim.opt.relativenumber = true
 
 -- Enable mouse mode, can be useful for resizing splits for example!
 vim.opt.mouse = 'a'
@@ -165,7 +260,7 @@ vim.keymap.set('n', '<Esc>', '<cmd>nohlsearch<CR>')
 vim.keymap.set('n', '[d', vim.diagnostic.goto_prev, { desc = 'Go to previous [D]iagnostic message' })
 vim.keymap.set('n', ']d', vim.diagnostic.goto_next, { desc = 'Go to next [D]iagnostic message' })
 vim.keymap.set('n', '<leader>e', vim.diagnostic.open_float, { desc = 'Show diagnostic [E]rror messages' })
-vim.keymap.set('n', '<leader>q', vim.diagnostic.setloclist, { desc = 'Open diagnostic [Q]uickfix list' })
+vim.keymap.set('n', '<leader>l', vim.diagnostic.setloclist, { desc = 'Open diagnostic Quickfix [l]ist' })
 
 -- Exit terminal mode in the builtin terminal with a shortcut that is a bit easier
 -- for people to discover. Otherwise, you normally need to press <C-\><C-n>, which
@@ -277,22 +372,27 @@ require('lazy').setup({
     'folke/which-key.nvim',
     event = 'VimEnter', -- Sets the loading event to 'VimEnter'
     config = function() -- This is the function that runs, AFTER loading
-      require('which-key').setup()
+      local wk = require 'which-key'
 
       -- Document existing key chains
-      require('which-key').register {
-        ['<leader>c'] = { name = '[C]ode', _ = 'which_key_ignore' },
-        ['<leader>d'] = { name = '[D]ocument', _ = 'which_key_ignore' },
-        ['<leader>r'] = { name = '[R]ename', _ = 'which_key_ignore' },
-        ['<leader>s'] = { name = '[S]earch', _ = 'which_key_ignore' },
-        ['<leader>w'] = { name = '[W]orkspace', _ = 'which_key_ignore' },
-        ['<leader>t'] = { name = '[T]oggle', _ = 'which_key_ignore' },
-        ['<leader>h'] = { name = 'Git [H]unk', _ = 'which_key_ignore' },
+      wk.add {
+        { '<leader>c', group = '[C]ode' },
+        { '<leader>c_', hidden = true },
+        { '<leader>h', group = 'Git [H]unk' },
+        { '<leader>h_', hidden = true },
+        { '<leader>r', group = '[R]ename' },
+        { '<leader>r_', hidden = true },
+        { '<leader>s', group = '[S]earch' },
+        { '<leader>s_', hidden = true },
+        { '<leader>t', group = '[T]erminal' },
+        { '<leader>t_', hidden = true },
+        { '<leader>w', group = '[W]rite' },
+        { '<leader>w_', hidden = true },
+        { '<leader>d', group = '[D]ocument' },
+        { '<leader>d_', hidden = true },
+        -- visual mode
+        { '<leader>h', desc = 'Git [H]unk', mode = 'v' },
       }
-      -- visual mode
-      require('which-key').register({
-        ['<leader>h'] = { 'Git [H]unk' },
-      }, { mode = 'v' })
     end,
   },
 
@@ -394,12 +494,12 @@ require('lazy').setup({
 
       -- It's also possible to pass additional configuration options.
       --  See `:help telescope.builtin.live_grep()` for information about particular keys
-      vim.keymap.set('n', '<leader>s/', function()
+      vim.keymap.set('n', '<leader>sc', function()
         builtin.live_grep {
           grep_open_files = true,
           prompt_title = 'Live Grep in Open Files',
         }
-      end, { desc = '[S]earch [/] in Open Files' })
+      end, { desc = '[S]earch [C]ode in Open Files' })
 
       -- Shortcut for searching your Neovim configuration files
       vim.keymap.set('n', '<leader>sn', function()
@@ -485,11 +585,11 @@ require('lazy').setup({
 
           -- Fuzzy find all the symbols in your current document.
           --  Symbols are things like variables, functions, types, etc.
-          map('<leader>ds', require('telescope.builtin').lsp_document_symbols, '[D]ocument [S]ymbols')
+          map('<leader>cs', require('telescope.builtin').lsp_document_symbols, 'LSP [C]ocument [S]ymbols')
 
           -- Fuzzy find all the symbols in your current workspace.
           --  Similar to document symbols, except searches over your entire project.
-          map('<leader>ws', require('telescope.builtin').lsp_dynamic_workspace_symbols, '[W]orkspace [S]ymbols')
+          -- map('<leader>cs', require('telescope.builtin').lsp_dynamic_workspace_symbols, 'LSP [C]ode [S]ymbols')
 
           -- Rename the variable under your cursor.
           --  Most Language Servers support renaming across files, etc.
@@ -533,9 +633,9 @@ require('lazy').setup({
           --
           -- This may be unwanted, since they displace some of your code
           if client and client.server_capabilities.inlayHintProvider and vim.lsp.inlay_hint then
-            map('<leader>th', function()
+            map('<leader>ch', function()
               vim.lsp.inlay_hint.enable(not vim.lsp.inlay_hint.is_enabled())
-            end, '[T]oggle Inlay [H]ints')
+            end, '[C]ode Inlay [H]ints')
           end
         end,
       })
@@ -565,17 +665,17 @@ require('lazy').setup({
       --  - settings (table): Override the default settings passed when initializing the server.
       --        For example, to see the options for `lua_ls`, you could go to: https://luals.github.io/wiki/settings/
       local servers = {
-        -- clangd = {},
+        clangd = {},
         -- gopls = {},
-        -- pyright = {},
-        -- rust_analyzer = {},
+        pyright = {},
+        rust_analyzer = {},
         -- ... etc. See `:help lspconfig-all` for a list of all the pre-configured LSPs
         --
         -- Some languages (like typescript) have entire language plugins that can be useful:
         --    https://github.com/pmizio/typescript-tools.nvim
         --
         -- But for many setups, the LSP (`tsserver`) will work just fine
-        -- tsserver = {},
+        tsserver = {},
         --
 
         lua_ls = {
@@ -718,9 +818,9 @@ require('lazy').setup({
         -- No, but seriously. Please read `:help ins-completion`, it is really good!
         mapping = cmp.mapping.preset.insert {
           -- Select the [n]ext item
-          ['<C-n>'] = cmp.mapping.select_next_item(),
+          -- ['<C-n>'] = cmp.mapping.select_next_item(),
           -- Select the [p]revious item
-          ['<C-p>'] = cmp.mapping.select_prev_item(),
+          -- ['<C-p>'] = cmp.mapping.select_prev_item(),
 
           -- Scroll the documentation window [b]ack / [f]orward
           ['<C-b>'] = cmp.mapping.scroll_docs(-4),
@@ -729,13 +829,13 @@ require('lazy').setup({
           -- Accept ([y]es) the completion.
           --  This will auto-import if your LSP supports it.
           --  This will expand snippets if the LSP sent a snippet.
-          ['<C-y>'] = cmp.mapping.confirm { select = true },
+          -- ['<C-y>'] = cmp.mapping.confirm { select = true },
 
           -- If you prefer more traditional completion keymaps,
           -- you can uncomment the following lines
-          --['<CR>'] = cmp.mapping.confirm { select = true },
-          --['<Tab>'] = cmp.mapping.select_next_item(),
-          --['<S-Tab>'] = cmp.mapping.select_prev_item(),
+          ['<CR>'] = cmp.mapping.confirm { select = true },
+          ['<Tab>'] = cmp.mapping.select_next_item(),
+          ['<S-Tab>'] = cmp.mapping.select_prev_item(),
 
           -- Manually trigger a completion from nvim-cmp.
           --  Generally you don't need this, because nvim-cmp will display
@@ -877,7 +977,7 @@ require('lazy').setup({
   -- require 'kickstart.plugins.indent_line',
   -- require 'kickstart.plugins.lint',
   -- require 'kickstart.plugins.autopairs',
-  -- require 'kickstart.plugins.neo-tree',
+  require 'kickstart.plugins.neo-tree',
   -- require 'kickstart.plugins.gitsigns', -- adds gitsigns recommend keymaps
 
   -- NOTE: The import below can automatically add your own plugins, configuration, etc from `lua/custom/plugins/*.lua`
@@ -885,7 +985,7 @@ require('lazy').setup({
   --
   --  Uncomment the following line and add your plugins to `lua/custom/plugins/*.lua` to get going.
   --    For additional information, see `:help lazy.nvim-lazy.nvim-structuring-your-plugins`
-  -- { import = 'custom.plugins' },
+  { import = 'custom.plugins' },
 }, {
   ui = {
     -- If you are using a Nerd Font: set icons to an empty table which will use the
