@@ -135,10 +135,7 @@ vim.o.autochdir = true
 
 -- Function to open a new tab with a terminal in the parent directory
 function OpenTerminalInNewTab()
-  local current_dir = vim.fn.getcwd() -- Get the current working directory
-  local parent_dir = vim.fn.fnamemodify(current_dir, ':h') -- Get the parent directory
   vim.cmd 'tabnew' -- Create a new tab
-  -- vim.cmd('lcd ' .. parent_dir) -- Change to the parent directory
   vim.cmd 'term' -- Open a terminal in the new tab
   vim.cmd 'startinsert' -- Switch to insert mode
 end
@@ -170,26 +167,6 @@ local function setup_windows()
   --   toggle = true,
   -- }
 end
-
-local function setup_lsp()
-  -- Check if LSP is available
-  if vim.lsp then
-    -- Iterate over active clients
-    for _, client in pairs(vim.lsp.get_clients()) do
-      -- Check if inlay hint provider is supported
-      if client.server_capabilities and client.server_capabilities.inlayHintProvider then
-        -- Enable inlay hints
-        vim.lsp.inlay_hint.enable(true)
-        return
-      end
-    end
-  end
-end
-
--- Call setup_lsp() when NeoVim is ready
-vim.defer_fn(function()
-  setup_lsp()
-end, 300)
 
 vim.api.nvim_create_autocmd('VimEnter', {
   pattern = '*',
@@ -257,8 +234,6 @@ vim.opt.hlsearch = true
 vim.keymap.set('n', '<Esc>', '<cmd>nohlsearch<CR>')
 
 -- Diagnostic keymaps
-vim.keymap.set('n', '[d', vim.diagnostic.goto_prev, { desc = 'Go to previous [D]iagnostic message' })
-vim.keymap.set('n', ']d', vim.diagnostic.goto_next, { desc = 'Go to next [D]iagnostic message' })
 vim.keymap.set('n', '<leader>e', vim.diagnostic.open_float, { desc = 'Show diagnostic [E]rror messages' })
 vim.keymap.set('n', '<leader>l', vim.diagnostic.setloclist, { desc = 'Open diagnostic Quickfix [l]ist' })
 
@@ -322,6 +297,7 @@ vim.opt.rtp:prepend(lazypath)
 require('lazy').setup({
   -- NOTE: Plugins can be added with a link (or for a github repo: 'owner/repo' link).
   'tpope/vim-sleuth', -- Detect tabstop and shiftwidth automatically
+  'tpope/vim-fugitive',
 
   -- NOTE: Plugins can also be added by using a table,
   -- with the first argument being the link and the following
@@ -593,11 +569,36 @@ require('lazy').setup({
 
           -- Rename the variable under your cursor.
           --  Most Language Servers support renaming across files, etc.
-          map('<leader>rn', vim.lsp.buf.rename, '[R]e[n]ame')
+          map('<leader>rn', function()
+            -- when rename opens the prompt, this autocommand will trigger
+            -- it will "press" CTRL-F to enter the command-line window `:h cmdwin`
+            -- in this window I can use normal mode keybindings
+            local cmdId
+            cmdId = vim.api.nvim_create_autocmd({ 'CmdlineEnter' }, {
+              callback = function()
+                local key = vim.api.nvim_replace_termcodes('<C-f>', true, false, true)
+                vim.api.nvim_feedkeys(key, 'c', false)
+                vim.api.nvim_feedkeys('0', 'n', false)
+                -- autocmd was triggered and so we can remove the ID and return true to delete the autocmd
+                cmdId = nil
+                return true
+              end,
+            })
+            vim.lsp.buf.rename()
+            -- if LPS couldn't trigger rename on the symbol, clear the autocmd
+            vim.defer_fn(function()
+              -- the cmdId is not nil only if the LSP failed to rename
+              if cmdId then
+                vim.api.nvim_del_autocmd(cmdId)
+              end
+            end, 500)
+          end, '[R]e[n]ame')
 
           -- Execute a code action, usually your cursor needs to be on top of an error
           -- or a suggestion from your LSP for this to activate.
           map('<leader>ca', vim.lsp.buf.code_action, '[C]ode [A]ction')
+          -- Restart LSP for current file
+          map('<leader>cr', ':LspRestart<CR>', '[C]ode [R]estart LSP')
 
           -- Opens a popup that displays documentation about the word under your cursor
           --  See `:help K` for why this keymap.
@@ -626,16 +627,6 @@ require('lazy').setup({
               group = highlight_augroup,
               callback = vim.lsp.buf.clear_references,
             })
-          end
-
-          -- The following autocommand is used to enable inlay hints in your
-          -- code, if the language server you are using supports them
-          --
-          -- This may be unwanted, since they displace some of your code
-          if client and client.server_capabilities.inlayHintProvider and vim.lsp.inlay_hint then
-            map('<leader>ch', function()
-              vim.lsp.inlay_hint.enable(not vim.lsp.inlay_hint.is_enabled())
-            end, '[C]ode Inlay [H]ints')
           end
         end,
       })
@@ -675,7 +666,7 @@ require('lazy').setup({
         --    https://github.com/pmizio/typescript-tools.nvim
         --
         -- But for many setups, the LSP (`tsserver`) will work just fine
-        tsserver = {},
+        -- tsserver = {},
         --
 
         lua_ls = {
@@ -711,12 +702,11 @@ require('lazy').setup({
       require('mason-tool-installer').setup { ensure_installed = ensure_installed }
 
       require('mason-lspconfig').setup {
+        ensure_installed = { 'lua_ls', 'pyright', 'clangd', 'rust_analyzer' }, -- Replace with the servers you want
+        automatic_installation = true, -- Automatically install servers listed in ensure_installed
         handlers = {
           function(server_name)
             local server = servers[server_name] or {}
-            -- This handles overriding only values explicitly passed
-            -- by the server configuration above. Useful when disabling
-            -- certain features of an LSP (for example, turning off formatting for tsserver)
             server.capabilities = vim.tbl_deep_extend('force', {}, capabilities, server.capabilities or {})
             require('lspconfig')[server_name].setup(server)
           end,
@@ -724,7 +714,6 @@ require('lazy').setup({
       }
     end,
   },
-
   { -- Autoformat
     'stevearc/conform.nvim',
     lazy = false,
@@ -805,6 +794,7 @@ require('lazy').setup({
       luasnip.config.setup {}
 
       cmp.setup {
+        preselect = cmp.PreselectMode.None,
         snippet = {
           expand = function(args)
             luasnip.lsp_expand(args.body)
@@ -977,15 +967,16 @@ require('lazy').setup({
   -- require 'kickstart.plugins.indent_line',
   -- require 'kickstart.plugins.lint',
   -- require 'kickstart.plugins.autopairs',
-  require 'kickstart.plugins.neo-tree',
-  -- require 'kickstart.plugins.gitsigns', -- adds gitsigns recommend keymaps
+  -- require 'kickstart.plugins.neo-tree',
+  require 'kickstart.plugins.gitsigns', -- adds gitsigns recommend keymaps
 
   -- NOTE: The import below can automatically add your own plugins, configuration, etc from `lua/custom/plugins/*.lua`
   --    This is the easiest way to modularize your config.
   --
   --  Uncomment the following line and add your plugins to `lua/custom/plugins/*.lua` to get going.
   --    For additional information, see `:help lazy.nvim-lazy.nvim-structuring-your-plugins`
-  { import = 'custom.plugins' },
+  -- { import = 'custom.plugins' },
+  ---@diagnostic disable-next-line: missing-fields
 }, {
   ui = {
     -- If you are using a Nerd Font: set icons to an empty table which will use the
