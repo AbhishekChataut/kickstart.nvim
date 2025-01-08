@@ -131,6 +131,10 @@ vim.api.nvim_create_autocmd('TabEnter', {
   end,
 })
 
+-- Map the function to a keybinding for easy access
+vim.api.nvim_set_keymap('n', '<leader>tt', ':lua OpenTerminalInNewTab()<CR>', { noremap = true, silent = true, desc = 'Open a [T]erminal [T]ab' })
+vim.api.nvim_set_keymap('n', '<leader>td', ':bd!<CR>', { noremap = true, silent = true, desc = '[T]ab [D]elete' })
+vim.api.nvim_set_keymap('n', '<leader>tb', ':tabn<CR>', { noremap = true, silent = true, desc = '[T]ab [B]ack' })
 vim.o.autochdir = true
 
 -- Function to open a new tab with a terminal in the parent directory
@@ -139,11 +143,6 @@ function OpenTerminalInNewTab()
   vim.cmd 'term' -- Open a terminal in the new tab
   vim.cmd 'startinsert' -- Switch to insert mode
 end
-
--- Map the function to a keybinding for easy access
-vim.api.nvim_set_keymap('n', '<leader>tt', ':lua OpenTerminalInNewTab()<CR>', { noremap = true, silent = true, desc = 'Open a [T]erminal [T]ab' })
-vim.api.nvim_set_keymap('n', '<leader>td', ':bd!<CR>', { noremap = true, silent = true, desc = '[T]ab [D]elete' })
-vim.api.nvim_set_keymap('n', '<leader>tb', ':tabn<CR>', { noremap = true, silent = true, desc = '[T]ab [B]ack' })
 
 local function setup_windows()
   local reveal_file = vim.fn.expand '%:p'
@@ -316,18 +315,18 @@ require('lazy').setup({
   --    require('gitsigns').setup({ ... })
   --
   -- See `:help gitsigns` to understand what the configuration keys do
-  { -- Adds git related signs to the gutter, as well as utilities for managing changes
-    'lewis6991/gitsigns.nvim',
-    opts = {
-      signs = {
-        add = { text = '+' },
-        change = { text = '~' },
-        delete = { text = '_' },
-        topdelete = { text = '‾' },
-        changedelete = { text = '~' },
-      },
-    },
-  },
+  -- { -- Adds git related signs to the gutter, as well as utilities for managing changes
+  --   'lewis6991/gitsigns.nvim',
+  --   opts = {
+  --     signs = {
+  --       add = { text = '+' },
+  --       change = { text = '~' },
+  --       delete = { text = '_' },
+  --       topdelete = { text = '‾' },
+  --       changedelete = { text = '~' },
+  --     },
+  --   },
+  -- },
 
   -- NOTE: Plugins can also be configured to run Lua code when they are loaded.
   --
@@ -975,7 +974,7 @@ require('lazy').setup({
   --
   --  Uncomment the following line and add your plugins to `lua/custom/plugins/*.lua` to get going.
   --    For additional information, see `:help lazy.nvim-lazy.nvim-structuring-your-plugins`
-  -- { import = 'custom.plugins' },
+  { import = 'custom.plugins' },
   ---@diagnostic disable-next-line: missing-fields
 }, {
   ui = {
