@@ -259,6 +259,16 @@ vim.keymap.set('n', '<C-l>', '<C-w><C-l>', { desc = 'Move focus to the right win
 vim.keymap.set('n', '<C-j>', '<C-w><C-j>', { desc = 'Move focus to the lower window' })
 vim.keymap.set('n', '<C-k>', '<C-w><C-k>', { desc = 'Move focus to the upper window' })
 
+vim.api.nvim_create_autocmd('FileType', {
+  pattern = { 'sml', 'cm' },
+  callback = function()
+    -- Add custom shortcuts
+    vim.keymap.set('n', '<leader>mb', ':SMLReplBuild<CR>', { buffer = true, desc = 'Build SML file' })
+    vim.keymap.set('n', '<leader>ms', ':SMLReplStart<CR>', { buffer = true, desc = 'Start SML Shell' })
+    vim.keymap.set('n', '<leader>mc', ':SMLReplClear<CR>', { buffer = true, desc = 'Clear SML Shell' })
+    vim.keymap.set('n', '<leader>mp', ':SMLReplStop<CR>', { buffer = true, desc = 'Stop SML Shell' })
+  end,
+})
 -- [[ Basic Autocommands ]]
 --  See `:help lua-guide-autocommands`
 
@@ -297,7 +307,22 @@ require('lazy').setup({
   -- NOTE: Plugins can be added with a link (or for a github repo: 'owner/repo' link).
   'tpope/vim-sleuth', -- Detect tabstop and shiftwidth automatically
   'tpope/vim-fugitive',
-
+  {
+    '3rd/image.nvim', -- Plugin name
+    build = false,
+    opts = {},
+  },
+  {
+    'jez/vim-better-sml',
+    config = function()
+      -- Disable MLton-related features
+      vim.g.sml_mlton_executable = ''
+      vim.g.sml_auto_create_def_use = 'never'
+      vim.g.sml_def_use_command = ''
+      vim.g.sml_smlnj_executable = 'sml'
+    end,
+  },
+  -- { 'alexghergh/nvim-tmux-navigation' },
   -- NOTE: Plugins can also be added by using a table,
   -- with the first argument being the link and the following
   -- keys can be used to configure plugin behavior/loading/etc.
@@ -309,24 +334,6 @@ require('lazy').setup({
 
   -- "gc" to comment visual regions/lines
   { 'numToStr/Comment.nvim', opts = {} },
-
-  -- Here is a more advanced example where we pass configuration
-  -- options to `gitsigns.nvim`. This is equivalent to the following Lua:
-  --    require('gitsigns').setup({ ... })
-  --
-  -- See `:help gitsigns` to understand what the configuration keys do
-  -- { -- Adds git related signs to the gutter, as well as utilities for managing changes
-  --   'lewis6991/gitsigns.nvim',
-  --   opts = {
-  --     signs = {
-  --       add = { text = '+' },
-  --       change = { text = '~' },
-  --       delete = { text = '_' },
-  --       topdelete = { text = '‾' },
-  --       changedelete = { text = '~' },
-  --     },
-  --   },
-  -- },
 
   -- NOTE: Plugins can also be configured to run Lua code when they are loaded.
   --
@@ -353,6 +360,8 @@ require('lazy').setup({
       wk.add {
         { '<leader>c', group = '[C]ode' },
         { '<leader>c_', hidden = true },
+        { '<leader>m', group = 'S[M]L' },
+        { '<leader>m_', hidden = true },
         { '<leader>h', group = 'Git [H]unk' },
         { '<leader>h_', hidden = true },
         { '<leader>r', group = '[R]ename' },
