@@ -83,7 +83,35 @@ I hope you enjoy your Neovim journey,
 
 P.S. You can delete this when you're done too. It's your config now! :)
 --]]
-
+-- CUSTOM TERMINAL COMMAND TO OPEN WITH OIL-SSH
+vim.api.nvim_create_user_command('OilSSH', function(opts)
+  vim.cmd('Oil oil-ssh://' .. opts.args)
+end, { nargs = 1, complete = 'file' })
+--
+-- INSTEAD USED ALIAS INSIDE ~/.bashrc
+-- -- Avoid triggering Oil . on startup if specific flags are present (e.g., -c, file paths)
+-- vim.api.nvim_create_autocmd('VimEnter', {
+--   callback = function()
+--     local args = vim.fn.argv()
+--     local is_interactive = true
+--
+--     -- Check for the presence of flags or commands (like -c, file paths, etc.)
+--     for _, arg in ipairs(args) do
+--       -- If any argument starts with - or is a path (e.g., / or ./), it's not interactive
+--       if arg:match("^-") or arg:match("^[%w/.-]+$") then
+--         is_interactive = false
+--         break
+--       end
+--     end
+--
+--     -- If no flags or commands are passed (interactive), trigger 'Oil .'
+--     if is_interactive then
+--       vim.defer_fn(function()
+--         vim.cmd 'Oil .'
+--       end, 1)
+--     end
+--   end,
+-- })
 -- Set <space> as the leader key
 -- See `:help mapleader`
 --  NOTE: Must happen before plugins are loaded (otherwise wrong leader will be used)
@@ -92,7 +120,12 @@ vim.g.maplocalleader = ' '
 
 -- Set to true if you have a Nerd Font installed and selected in the terminal
 vim.g.have_nerd_font = false
-
+--
+-- Set Tab and indentation settings globally
+vim.o.tabstop = 4 -- Number of spaces a tab character represents
+vim.o.softtabstop = 4 -- How many spaces the editor uses when pressing Tab
+vim.o.shiftwidth = 4 -- Number of spaces to use for indentation
+vim.o.expandtab = true -- Use spaces instead of tab characters
 -- Exit terminal mode shortcut
 vim.api.nvim_set_keymap('t', '<C-q>', '<C-\\><C-n>', { noremap = true, silent = true })
 
@@ -130,19 +163,26 @@ vim.api.nvim_create_autocmd('TabEnter', {
     end
   end,
 })
+--
+-- Hide cursor when opening a *.png buffer
+vim.api.nvim_create_autocmd('BufReadPost', {
+  pattern = '*.png',
+  callback = function()
+    -- Send Kitty escape sequence to hide the cursor
+    vim.cmd [[silent! call chansend(v:stderr, "\x1b[?25l")]]
+    -- print 'Cursor disabled for this buffer'
+  end,
+})
 
--- Map the function to a keybinding for easy access
-vim.api.nvim_set_keymap('n', '<leader>tt', ':lua OpenTerminalInNewTab()<CR>', { noremap = true, silent = true, desc = 'Open a [T]erminal [T]ab' })
-vim.api.nvim_set_keymap('n', '<leader>td', ':bd!<CR>', { noremap = true, silent = true, desc = '[T]ab [D]elete' })
-vim.api.nvim_set_keymap('n', '<leader>tb', ':tabn<CR>', { noremap = true, silent = true, desc = '[T]ab [B]ack' })
-vim.o.autochdir = true
-
--- Function to open a new tab with a terminal in the parent directory
-function OpenTerminalInNewTab()
-  vim.cmd 'tabnew' -- Create a new tab
-  vim.cmd 'term' -- Open a terminal in the new tab
-  vim.cmd 'startinsert' -- Switch to insert mode
-end
+-- Show cursor when leaving a *.png buffer
+vim.api.nvim_create_autocmd('BufLeave', {
+  pattern = '*.png',
+  callback = function()
+    -- Send Kitty escape sequence to show the cursor
+    vim.cmd [[silent! call chansend(v:stderr, "\x1b[?25h")]]
+    -- print 'Cursor restored'
+  end,
+})
 
 local function setup_windows()
   local reveal_file = vim.fn.expand '%:p'
@@ -259,6 +299,10 @@ vim.keymap.set('n', '<C-l>', '<C-w><C-l>', { desc = 'Move focus to the right win
 vim.keymap.set('n', '<C-j>', '<C-w><C-j>', { desc = 'Move focus to the lower window' })
 vim.keymap.set('n', '<C-k>', '<C-w><C-k>', { desc = 'Move focus to the upper window' })
 
+vim.keymap.set('n', '<leader>z', function()
+  MiniMisc.zoom()
+end, { desc = 'Zoom into buffer' })
+
 vim.api.nvim_create_autocmd('FileType', {
   pattern = { 'sml', 'cm' },
   callback = function()
@@ -269,6 +313,7 @@ vim.api.nvim_create_autocmd('FileType', {
     vim.keymap.set('n', '<leader>mp', ':SMLReplStop<CR>', { buffer = true, desc = 'Stop SML Shell' })
   end,
 })
+
 -- [[ Basic Autocommands ]]
 --  See `:help lua-guide-autocommands`
 
@@ -303,17 +348,73 @@ vim.opt.rtp:prepend(lazypath)
 --    :Lazy update
 --
 -- NOTE: Here is where you install your plugins.
+-- Define a function to change the scale factor dynamically
 require('lazy').setup({
   -- NOTE: Plugins can be added with a link (or for a github repo: 'owner/repo' link).
   'tpope/vim-sleuth', -- Detect tabstop and shiftwidth automatically
   'tpope/vim-fugitive',
   {
     '3rd/image.nvim', -- Plugin name
-    build = false,
-    opts = {},
+    config = function()
+      local image = require 'image'
+      image.setup {
+        backend = 'kitty',
+        scale_factor = 4.0,
+        processor = 'magick_rock', -- or "magick_cli"
+        integrations = {
+          markdown = {
+            enabled = true,
+            clear_in_insert_mode = false,
+            download_remote_images = true,
+            only_render_image_at_cursor = false,
+            floating_windows = false, -- Render in floating markdown windows
+            filetypes = { 'markdown', 'vimwiki' },
+          },
+          neorg = {
+            enabled = true,
+            filetypes = { 'norg' },
+          },
+          typst = {
+            enabled = true,
+            filetypes = { 'typst' },
+          },
+          html = {
+            enabled = false,
+          },
+          css = {
+            enabled = false,
+          },
+        },
+        max_width = nil,
+        max_height = nil,
+        max_width_window_percentage = nil,
+        max_height_window_percentage = 50,
+        window_overlap_clear_enabled = false,
+        window_overlap_clear_ft_ignore = {
+          'cmp_menu',
+          'cmp_docs',
+          'snacks_notif',
+          'scrollview',
+          'scrollview_sign',
+        },
+        editor_only_render_when_focused = false,
+        tmux_show_only_in_active_window = false,
+        hijack_file_patterns = {
+          '*.png',
+          '*.jpg',
+          '*.jpeg',
+          '*.gif',
+          '*.webp',
+          '*.avif',
+        },
+      }
+    end,
+    dependencies = { 'nvim-lua/plenary.nvim' }, -- Add any dependencies if required
+    event = 'VeryLazy',
   },
   {
     'jez/vim-better-sml',
+    event = 'VeryLazy',
     config = function()
       -- Disable MLton-related features
       vim.g.sml_mlton_executable = ''
@@ -360,6 +461,8 @@ require('lazy').setup({
       wk.add {
         { '<leader>c', group = '[C]ode' },
         { '<leader>c_', hidden = true },
+        { '<leader>p', group = '[P]hoto' },
+        { '<leader>p_', hidden = true },
         { '<leader>m', group = 'S[M]L' },
         { '<leader>m_', hidden = true },
         { '<leader>h', group = 'Git [H]unk' },
@@ -389,7 +492,7 @@ require('lazy').setup({
 
   { -- Fuzzy Finder (files, lsp, etc)
     'nvim-telescope/telescope.nvim',
-    event = 'VimEnter',
+    event = 'VeryLazy',
     branch = '0.1.x',
     dependencies = {
       'nvim-lua/plenary.nvim',
@@ -494,6 +597,7 @@ require('lazy').setup({
 
   { -- LSP Configuration & Plugins
     'neovim/nvim-lspconfig',
+    event = 'VeryLazy',
     dependencies = {
       -- Automatically install LSPs and related tools to stdpath for Neovim
       { 'williamboman/mason.nvim', config = true }, -- NOTE: Must be loaded before dependants
@@ -664,7 +768,9 @@ require('lazy').setup({
       --  - settings (table): Override the default settings passed when initializing the server.
       --        For example, to see the options for `lua_ls`, you could go to: https://luals.github.io/wiki/settings/
       local servers = {
-        clangd = {},
+        clangd = {
+          cmd = { 'clangd', '--fallback-style=webkit' }, -- Add your custom command and flags here
+        },
         -- gopls = {},
         pyright = {},
         rust_analyzer = {},
@@ -909,6 +1015,7 @@ require('lazy').setup({
       -- - sd'   - [S]urround [D]elete [']quotes
       -- - sr)'  - [S]urround [R]eplace [)] [']
       require('mini.surround').setup()
+      require('mini.misc').setup()
 
       -- Simple and easy statusline.
       --  You could remove this setup call if you don't like it,
@@ -1009,3 +1116,70 @@ require('lazy').setup({
 
 -- The line beneath this is called `modeline`. See `:help modeline`
 -- vim: ts=2 sts=2 sw=2 et
+-- Make sure oil is required after it's installed
+local oil = require 'oil'
+vim.o.autochdir = true
+--
+-- Check if buffer name starts with ssh://
+local function is_ssh_buffer()
+  local bufname = vim.fn.bufname()
+  return bufname:match '^ssh://' ~= nil
+end
+
+-- Check environment for SSH connection
+local function is_ssh_connected()
+  return os.getenv 'SSH_CONNECTION' ~= nil
+end
+
+-- Oil-specific check
+local function is_oil_ssh_buffer()
+  local bufname = vim.fn.bufname()
+  return bufname:match '^oil-ssh://' ~= nil
+end
+
+-- Combination check
+local function is_remote_buffer()
+  return is_ssh_buffer() or is_oil_ssh_buffer() or is_ssh_connected()
+end
+
+function ExtractSSHPathComponents(oil_ssh_path)
+  -- Match the VM address and path components
+  local vm_address = oil_ssh_path:match 'oil%-ssh://([^/]+)'
+  local file_path = oil_ssh_path:match 'oil%-ssh://[^/]+//home/ac802/(.*)'
+
+  return vm_address, file_path
+end
+
+-- Example usage in your OpenTerminalInNewTab function
+function OpenTerminalInNewTab()
+  local current_dir = vim.fn.expand '%:p:h'
+  local vm_address, file_path = ExtractSSHPathComponents(current_dir)
+
+  -- Temporarily override the message handler
+  local original_notify = vim.notify
+  vim.notify = function() end -- Disable messages
+
+  local status, _ = pcall(function()
+    if vm_address then
+      vim.cmd 'tabnew'
+      vim.cmd('silent! term ssh ' .. vm_address .. ' -t "cd ' .. file_path .. '/ && $SHELL"')
+      vim.cmd 'startinsert'
+    else
+      vim.cmd 'tabnew'
+      vim.cmd 'term'
+      vim.cmd 'startinsert'
+    end
+  end)
+
+  -- Restore the original message handler
+  vim.notify = original_notify
+
+  if not status then
+    print 'An error occurred while opening the terminal.'
+  end
+end
+
+-- Keybindings for the terminal-related functions
+vim.api.nvim_set_keymap('n', '<leader>tt', ':lua OpenTerminalInNewTab()<CR>', { noremap = true, silent = true, desc = 'Open a [T]erminal [T]ab' })
+vim.api.nvim_set_keymap('n', '<leader>td', ':bd!<CR>', { noremap = true, silent = true, desc = '[T]ab [D]elete' })
+vim.api.nvim_set_keymap('n', '<leader>tb', ':tabn<CR>', { noremap = true, silent = true, desc = '[T]ab [B]ack' })
