@@ -84,9 +84,35 @@ I hope you enjoy your Neovim journey,
 P.S. You can delete this when you're done too. It's your config now! :)
 --]]
 -- CUSTOM TERMINAL COMMAND TO OPEN WITH OIL-SSH
+local vm_mapping = require 'vm_mapping' -- Load the mapping from the separate file
+
+-- Create a completion function
+local function complete_vm_names(arg_lead)
+  local matches = {}
+  for name, _ in pairs(vm_mapping) do
+    if name:find('^' .. vim.pesc(arg_lead)) then
+      table.insert(matches, name)
+    end
+  end
+  return matches
+end
+
+-- Create the user command
 vim.api.nvim_create_user_command('OilSSH', function(opts)
-  vim.cmd('Oil oil-ssh://' .. opts.args)
-end, { nargs = 1, complete = 'file' })
+  local vm_name = opts.args
+  local remote = vm_mapping[vm_name]
+  if not remote then
+    vim.api.nvim_err_writeln('Unknown VM: ' .. vm_name)
+    return
+  end
+  vim.cmd('Oil oil-ssh://' .. remote)
+end, {
+  nargs = 1,
+  complete = complete_vm_names,
+})
+-- vim.api.nvim_create_user_command('OilSSH', function(opts)
+--   vim.cmd('Oil oil-ssh://' .. opts.args)
+-- end, { nargs = 1, complete = 'file' })
 --
 -- INSTEAD USED ALIAS INSIDE ~/.bashrc
 -- -- Avoid triggering Oil . on startup if specific flags are present (e.g., -c, file paths)
