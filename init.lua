@@ -84,7 +84,7 @@ I hope you enjoy your Neovim journey,
 P.S. You can delete this when you're done too. It's your config now! :)
 --]]
 -- CUSTOM TERMINAL COMMAND TO OPEN WITH OIL-SSH
-local vm_mapping = require 'vm_mapping' -- Load the mapping from the separate file
+local vm_mapping = require 'duke_vm_mapping' -- Load the mapping from the separate file
 
 -- Create a completion function
 local function complete_vm_names(arg_lead)
