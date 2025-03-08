@@ -143,6 +143,7 @@ end, {
 --  NOTE: Must happen before plugins are loaded (otherwise wrong leader will be used)
 vim.g.mapleader = ' '
 vim.g.maplocalleader = ' '
+vim.opt.list = false
 
 -- Set to true if you have a Nerd Font installed and selected in the terminal
 vim.g.have_nerd_font = false
@@ -279,7 +280,7 @@ vim.opt.splitbelow = true
 -- Sets how neovim will display certain whitespace characters in the editor.
 --  See `:help 'list'`
 --  and `:help 'listchars'`
-vim.opt.list = true
+-- vim.opt.list = true
 vim.opt.listchars = { tab = '» ', trail = '·', nbsp = '␣' }
 
 -- Preview substitutions live, as you type!
@@ -294,6 +295,16 @@ vim.opt.scrolloff = 10
 -- [[ Basic Keymaps ]]
 --  See `:help vim.keymap.set()`
 
+vim.api.nvim_create_autocmd('FileType', {
+  pattern = 'sml',
+  callback = function()
+    vim.o.softtabstop = 4
+    vim.o.shiftwidth = 1
+    vim.o.tabstop = 4 -- Number of spaces a tab character represents
+    vim.o.expandtab = true -- Use spaces instead of tab characters
+  end,
+})
+
 -- Set highlight on search, but clear on pressing <Esc> in normal mode
 vim.opt.hlsearch = true
 vim.keymap.set('n', '<Esc>', '<cmd>nohlsearch<CR>')
@@ -302,6 +313,8 @@ vim.keymap.set('n', '<Esc>', '<cmd>nohlsearch<CR>')
 vim.keymap.set('n', '<leader>e', vim.diagnostic.open_float, { desc = 'Show diagnostic [E]rror messages' })
 vim.keymap.set('n', '<leader>l', vim.diagnostic.setloclist, { desc = 'Open diagnostic Quickfix [l]ist' })
 
+vim.keymap.set('n', '<leader>ns', ':mksession! ~/.nvim_session<CR>', { silent = true, desc = 'Make new session' })
+vim.keymap.set('n', '<leader>ls', ':source ~/.nvim_session<CR>', { silent = true, desc = 'Load session' })
 -- Exit terminal mode in the builtin terminal with a shortcut that is a bit easier
 -- for people to discover. Otherwise, you normally need to press <C-\><C-n>, which
 -- is not what someone will guess without a bit more experience.
@@ -330,7 +343,7 @@ vim.keymap.set('n', '<leader>z', function()
 end, { desc = 'Zoom into buffer' })
 
 vim.api.nvim_create_autocmd('FileType', {
-  pattern = { 'sml', 'cm' },
+  pattern = { 'sml', 'cm', 'lex', 'tig', 'mlyacc' },
   callback = function()
     -- Add custom shortcuts
     vim.keymap.set('n', '<leader>mb', ':SMLReplBuild<CR>', { buffer = true, desc = 'Build SML file' })
@@ -461,7 +474,12 @@ require('lazy').setup({
 
   -- "gc" to comment visual regions/lines
   { 'numToStr/Comment.nvim', opts = {} },
-
+  {
+    'github/copilot.vim',
+    config = function()
+      vim.keymap.set('i', '<C-W>', '<Plug>(copilot-accept-word)')
+    end,
+  },
   -- NOTE: Plugins can also be configured to run Lua code when they are loaded.
   --
   -- This is often very useful to both group configuration, as well as handle
@@ -588,7 +606,7 @@ require('lazy').setup({
       vim.keymap.set('n', '<leader>sh', builtin.help_tags, { desc = '[S]earch [H]elp' })
       vim.keymap.set('n', '<leader>sk', builtin.keymaps, { desc = '[S]earch [K]eymaps' })
       vim.keymap.set('n', '<leader>sf', builtin.find_files, { desc = '[S]earch [F]iles' })
-      vim.keymap.set('n', '<leader>ss', builtin.builtin, { desc = '[S]earch [S]elect Telescope' })
+      -- vim.keymap.set('n', '<leader>ss', builtin.builtin, { desc = '[S]earch [S]elect Telescope' })
       vim.keymap.set('n', '<leader>sw', builtin.grep_string, { desc = '[S]earch current [W]ord' })
       vim.keymap.set('n', '<leader>sg', builtin.live_grep, { desc = '[S]earch by [G]rep' })
       vim.keymap.set('n', '<leader>sd', builtin.diagnostics, { desc = '[S]earch [D]iagnostics' })
@@ -623,7 +641,7 @@ require('lazy').setup({
 
   { -- LSP Configuration & Plugins
     'neovim/nvim-lspconfig',
-    event = 'VeryLazy',
+    event = 'InsertEnter',
     dependencies = {
       -- Automatically install LSPs and related tools to stdpath for Neovim
       { 'williamboman/mason.nvim', config = true }, -- NOTE: Must be loaded before dependants
@@ -773,7 +791,12 @@ require('lazy').setup({
         group = vim.api.nvim_create_augroup('kickstart-lsp-detach', { clear = true }),
         callback = function(event)
           vim.lsp.buf.clear_references()
-          vim.api.nvim_clear_autocmds { group = 'kickstart-lsp-highlight', buffer = event.buf }
+
+          -- Check if the group exists before clearing autocommands
+          local ok, _ = pcall(vim.api.nvim_clear_autocmds, { group = 'kickstart-lsp-highlight', buffer = event.buf })
+          if not ok then
+            -- vim.notify("Autocommand group 'kickstart-lsp-highlight' does not exist", vim.log.levels.TRACE)
+          end
         end,
       })
 
@@ -842,7 +865,7 @@ require('lazy').setup({
       require('mason-tool-installer').setup { ensure_installed = ensure_installed }
 
       require('mason-lspconfig').setup {
-        ensure_installed = { 'lua_ls', 'pyright', 'clangd', 'rust_analyzer' }, -- Replace with the servers you want
+        ensure_installed = { 'lua_ls', 'pyright', 'clangd' }, -- Replace with the servers you want
         automatic_installation = true, -- Automatically install servers listed in ensure_installed
         handlers = {
           function(server_name)
@@ -964,8 +987,8 @@ require('lazy').setup({
           -- If you prefer more traditional completion keymaps,
           -- you can uncomment the following lines
           ['<CR>'] = cmp.mapping.confirm { select = true },
-          ['<Tab>'] = cmp.mapping.select_next_item(),
-          ['<S-Tab>'] = cmp.mapping.select_prev_item(),
+          -- ['<Tab>'] = cmp.mapping.select_next_item(),
+          -- ['<S-Tab>'] = cmp.mapping.select_prev_item(),
 
           -- Manually trigger a completion from nvim-cmp.
           --  Generally you don't need this, because nvim-cmp will display
