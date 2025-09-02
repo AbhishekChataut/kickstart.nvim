@@ -97,6 +97,22 @@ local function complete_vm_names(arg_lead)
   return matches
 end
 
+vim.api.nvim_create_user_command('OilEC2', function(opts)
+  local ip = opts.args
+  if ip == '' then
+    vim.api.nvim_err_writeln 'Usage: :OilEC2 <ip_address>'
+    return
+  end
+
+  -- Build the SSH target dynamically (alias not needed)
+  local remote = string.format('ec2-user@%s/', ip)
+
+  -- Use Oil with SSH
+  vim.cmd('Oil oil-ssh://' .. remote)
+end, {
+  nargs = 1,
+})
+
 -- Create the user command
 vim.api.nvim_create_user_command('OilSSH', function(opts)
   local vm_name = opts.args
@@ -1179,9 +1195,13 @@ vim.o.autochdir = true
 --
 
 function ExtractSSHPathComponents(oil_ssh_path)
-  -- Match the VM address and path components
   local vm_address = oil_ssh_path:match 'oil%-ssh://([^/]+)'
-  local file_path = oil_ssh_path:match 'oil%-ssh://[^/]+//home/ac802/(.*)'
+  local file_path = oil_ssh_path:match 'oil%-ssh://[^/]+/(.*)'
+
+  -- Ensure leading slash, remove accidental double slashes
+  if file_path then
+    file_path = '/' .. file_path:gsub('^/*', '')
+  end
 
   return vm_address, file_path
 end
@@ -1191,14 +1211,13 @@ function OpenTerminalInNewTab()
   local current_dir = vim.fn.expand '%:p:h'
   local vm_address, file_path = ExtractSSHPathComponents(current_dir)
 
-  -- Temporarily override the message handler
   local original_notify = vim.notify
-  vim.notify = function() end -- Disable messages
+  vim.notify = function() end -- silence Oil messages
 
   local status, _ = pcall(function()
     if vm_address then
       vim.cmd 'tabnew'
-      vim.cmd('silent! term ssh ' .. vm_address .. ' -t "cd ' .. file_path .. '/ && $SHELL"')
+      vim.cmd(string.format('silent! term ssh %s -t "cd %s && exec bash"', vm_address, file_path or '~'))
       vim.cmd 'startinsert'
     else
       vim.cmd 'tabnew'
@@ -1207,7 +1226,6 @@ function OpenTerminalInNewTab()
     end
   end)
 
-  -- Restore the original message handler
   vim.notify = original_notify
 
   if not status then
