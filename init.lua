@@ -298,9 +298,9 @@ vim.opt.scrolloff = 10
 vim.api.nvim_create_autocmd('FileType', {
   pattern = 'sml',
   callback = function()
-    vim.o.softtabstop = 4
+    vim.o.softtabstop = 2
     vim.o.shiftwidth = 1
-    vim.o.tabstop = 4 -- Number of spaces a tab character represents
+    vim.o.tabstop = 2 -- Number of spaces a tab character represents
     vim.o.expandtab = true -- Use spaces instead of tab characters
   end,
 })
@@ -341,6 +341,14 @@ vim.keymap.set('n', '<C-k>', '<C-w><C-k>', { desc = 'Move focus to the upper win
 vim.keymap.set('n', '<leader>z', function()
   MiniMisc.zoom()
 end, { desc = 'Zoom into buffer' })
+
+vim.api.nvim_create_autocmd({ 'BufRead', 'BufNewFile' }, {
+  pattern = '*.tig',
+  callback = function()
+    vim.bo.filetype = 'tig'
+    vim.bo.commentstring = '/* %s */'
+  end,
+})
 
 vim.api.nvim_create_autocmd('FileType', {
   pattern = { 'sml', 'cm', 'lex', 'tig', 'mlyacc' },
@@ -641,7 +649,7 @@ require('lazy').setup({
 
   { -- LSP Configuration & Plugins
     'neovim/nvim-lspconfig',
-    event = 'InsertEnter',
+    event = 'VeryLazy',
     dependencies = {
       -- Automatically install LSPs and related tools to stdpath for Neovim
       { 'williamboman/mason.nvim', config = true }, -- NOTE: Must be loaded before dependants
@@ -865,7 +873,7 @@ require('lazy').setup({
       require('mason-tool-installer').setup { ensure_installed = ensure_installed }
 
       require('mason-lspconfig').setup {
-        ensure_installed = { 'lua_ls', 'pyright', 'clangd' }, -- Replace with the servers you want
+        ensure_installed = { 'lua_ls', 'pyright', 'clangd', 'rust_analyzer' }, -- Replace with the servers you want
         automatic_installation = true, -- Automatically install servers listed in ensure_installed
         handlers = {
           function(server_name)
@@ -1169,27 +1177,6 @@ require('lazy').setup({
 local oil = require 'oil'
 vim.o.autochdir = true
 --
--- Check if buffer name starts with ssh://
-local function is_ssh_buffer()
-  local bufname = vim.fn.bufname()
-  return bufname:match '^ssh://' ~= nil
-end
-
--- Check environment for SSH connection
-local function is_ssh_connected()
-  return os.getenv 'SSH_CONNECTION' ~= nil
-end
-
--- Oil-specific check
-local function is_oil_ssh_buffer()
-  local bufname = vim.fn.bufname()
-  return bufname:match '^oil-ssh://' ~= nil
-end
-
--- Combination check
-local function is_remote_buffer()
-  return is_ssh_buffer() or is_oil_ssh_buffer() or is_ssh_connected()
-end
 
 function ExtractSSHPathComponents(oil_ssh_path)
   -- Match the VM address and path components
@@ -1227,7 +1214,6 @@ function OpenTerminalInNewTab()
     print 'An error occurred while opening the terminal.'
   end
 end
-
 -- Keybindings for the terminal-related functions
 vim.api.nvim_set_keymap('n', '<leader>tt', ':lua OpenTerminalInNewTab()<CR>', { noremap = true, silent = true, desc = 'Open a [T]erminal [T]ab' })
 vim.api.nvim_set_keymap('n', '<leader>td', ':bd!<CR>', { noremap = true, silent = true, desc = '[T]ab [D]elete' })
